@@ -337,7 +337,7 @@ export default function App() {
       [data-theme="dark"] .shadow-xl,
       [data-theme="dark"] .shadow-md { box-shadow:0 10px 30px rgba(0,0,0,.35) !important; }
     `}</style>
-    <div className="max-w-md mx-auto p-4 space-y-5">
+    <div className="lg:hidden max-w-md mx-auto p-4 space-y-5">
       <header className="flex items-center justify-between gap-3"><div><p className="text-xs text-slate-500 font-semibold">Powered by SY Systems</p><h1 className="font-black text-xl">{clinicName}</h1><p className="text-[11px] text-slate-400">{t.local} {last ? `· ${last}` : ''} · {sync}</p>{error && <p className="text-[11px] text-rose-600">{error}</p>}</div><div className="w-[170px] h-[70px] sm:w-[220px] sm:h-[82px] flex items-center justify-center shrink-0 overflow-visible">
   <img
     src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
@@ -354,7 +354,54 @@ export default function App() {
       {tab === 'settings' && <section className="space-y-4"><h2 className="font-black text-lg">{t.settings}</h2><div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3"><Field label={t.clinicName}><Input value={clinicName} onChange={(e) => setClinicName(e.target.value)} /></Field><Field label={t.language}><Select value={lang} onChange={(e) => setLang(e.target.value)}><option value="ar">العربية</option><option value="en">English</option></Select></Field><Field label="Theme"><Select value={theme} onChange={(e) => setTheme(e.target.value)}><option value="light">Light</option><option value="dark">Dark</option></Select></Field></div></section>}
     </div>
 
-    <div className="fixed bottom-24 right-1/2 translate-x-1/2 z-40 flex flex-col items-center gap-3">
+    <DesktopLayout
+      t={t}
+      theme={theme}
+      tab={tab}
+      setTab={setTab}
+      clinicName={clinicName}
+      sync={sync}
+      last={last}
+      error={error}
+      nav={nav}
+      date={date}
+      setDate={setDate}
+      query={query}
+      setQuery={setQuery}
+      todayAppointments={todayAppointments}
+      patients={patients}
+      payments={payments}
+      appointments={appointments}
+      selected={selected}
+      setSelected={setSelected}
+      selectedPayment={selectedPayment}
+      setSelectedPayment={setSelectedPayment}
+      cashSyp={cashSyp}
+      setModal={setModal}
+      openAddPatient={openAddPatient}
+      openPayment={openPayment}
+      openEditPatient={openEditPatient}
+      openEditPayment={openEditPayment}
+      deletePaymentRecord={deletePaymentRecord}
+      deletePatientRecord={deletePatientRecord}
+      setStatus={setStatus}
+      deleteAppointment={deleteAppointment}
+      reportMode={reportMode}
+      setReportMode={setReportMode}
+      reportFrom={reportFrom}
+      setReportFrom={setReportFrom}
+      reportTo={reportTo}
+      setReportTo={setReportTo}
+      setEditingPayment={setEditingPayment}
+      setPaymentForm={setPaymentForm}
+      emptyPayment={emptyPayment}
+      setClinicName={setClinicName}
+      lang={lang}
+      setLang={setLang}
+      setTheme={setTheme}
+    />
+
+    <div className="lg:hidden fixed bottom-24 right-1/2 translate-x-1/2 z-40 flex flex-col items-center gap-3">
       {actionMenuOpen && <div className="bg-white border border-slate-200 rounded-3xl shadow-xl p-2 w-48 space-y-2 text-sm">
         <button onClick={() => { setModal('appointment'); setActionMenuOpen(false); }} className="w-full flex items-center justify-between rounded-2xl px-4 py-3 bg-slate-50 font-bold"><span>{t.addAppointment}</span><span>📅</span></button>
         <button onClick={() => { openAddPatient(); setActionMenuOpen(false); }} className="w-full flex items-center justify-between rounded-2xl px-4 py-3 bg-slate-50 font-bold"><span>{t.addPatient}</span><span>👤</span></button>
@@ -362,12 +409,76 @@ export default function App() {
       </div>}
       <button onClick={() => setActionMenuOpen((v) => !v)} className="w-16 h-16 rounded-full bg-slate-900 text-white text-3xl shadow-xl active:scale-95 transition">{actionMenuOpen ? '×' : '＋'}</button>
     </div>
-    <nav className="fixed bottom-0 inset-x-0 bg-white border-t z-30 p-2"><div className="max-w-md mx-auto grid grid-cols-5 gap-1">{nav.map((n) => <button key={n[0]} onClick={() => setTab(n[0])} className={`rounded-2xl py-2 text-xs flex flex-col items-center ${tab === n[0] ? 'bg-slate-100 font-black' : 'text-slate-500'}`}><span>{n[1]}</span><span>{n[2]}</span></button>)}</div></nav>
+    <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t z-30 p-2"><div className="max-w-md mx-auto grid grid-cols-5 gap-1">{nav.map((n) => <button key={n[0]} onClick={() => setTab(n[0])} className={`rounded-2xl py-2 text-xs flex flex-col items-center ${tab === n[0] ? 'bg-slate-100 font-black' : 'text-slate-500'}`}><span>{n[1]}</span><span>{n[2]}</span></button>)}</div></nav>
 
     {modal === 'patient' && <Modal title={editingPatient ? t.editPatient : t.addPatient} onClose={() => setModal(null)} dir={t.dir}><Field label={t.patientName}><Input value={patientForm.name} onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })} /></Field><Field label={t.phone}><Input value={patientForm.phone} onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })} /></Field><Field label={t.plan}><Input value={patientForm.plan} onChange={(e) => setPatientForm({ ...patientForm, plan: e.target.value })} /></Field><Field label={t.totalCost}><Input inputMode="numeric" value={patientForm.totalSyp} onChange={(e) => setPatientForm({ ...patientForm, totalSyp: e.target.value })} /></Field><Field label={t.notes}><Textarea value={patientForm.notes} onChange={(e) => setPatientForm({ ...patientForm, notes: e.target.value })} /></Field><Button onClick={savePatient} disabled={!patientForm.name || !patientForm.phone} className="w-full">{t.save}</Button></Modal>}
     {modal === 'appointment' && <Modal title={t.addAppointment} onClose={() => setModal(null)} dir={t.dir}><Field label={t.patient}><Select value={appointmentForm.patientId} onChange={(e) => setAppointmentForm({ ...appointmentForm, patientId: e.target.value })}><option value="">{t.choosePatient}</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field><Field label={t.date}><Input type="date" value={appointmentForm.date} onChange={(e) => setAppointmentForm({ ...appointmentForm, date: e.target.value })} /></Field><Field label={t.time}><Input type="time" value={appointmentForm.time} onChange={(e) => setAppointmentForm({ ...appointmentForm, time: e.target.value })} /></Field><Field label={t.service}><Select value={appointmentForm.service} onChange={(e) => setAppointmentForm({ ...appointmentForm, service: e.target.value })}>{services.map((s) => <option key={s} value={s}>{s}</option>)}</Select></Field><Field label={t.notes}><Textarea value={appointmentForm.notes} onChange={(e) => setAppointmentForm({ ...appointmentForm, notes: e.target.value })} /></Field><Button onClick={saveAppointment} disabled={!appointmentForm.patientId || !appointmentForm.time} className="w-full">{t.saveAppointment}</Button></Modal>}
     {modal === 'payment' && <Modal title={t.addPayment} onClose={() => setModal(null)} dir={t.dir}><Field label={t.patient}><Select value={paymentForm.patientId} onChange={(e) => setPaymentForm({ ...paymentForm, patientId: e.target.value })}><option value="">{t.choosePatient}</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field><Field label={t.date}><Input type="date" value={paymentForm.date} onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} /></Field><Field label={t.amountSyp}><Input inputMode="numeric" value={paymentForm.amountSyp} onChange={(e) => setPaymentForm({ ...paymentForm, amountSyp: e.target.value })} /></Field><Field label={t.method}><Select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Cash</option><option>Transfer</option><option>Card</option><option>Other</option></Select></Field><Field label={t.note}><Textarea value={paymentForm.note} onChange={(e) => setPaymentForm({ ...paymentForm, note: e.target.value })} /></Field><Button onClick={savePayment} disabled={!paymentForm.patientId || !paymentForm.amountSyp} className="w-full">{t.savePayment}</Button></Modal>}
   </main>;
+}
+
+function DesktopLayout({ t, theme, tab, setTab, clinicName, sync, last, error, nav, date, setDate, query, setQuery, todayAppointments, patients, payments, appointments, selected, setSelected, selectedPayment, setSelectedPayment, cashSyp, setModal, openAddPatient, openPayment, openEditPatient, openEditPayment, deletePaymentRecord, deletePatientRecord, setStatus, deleteAppointment, reportMode, setReportMode, reportFrom, setReportFrom, reportTo, setReportTo, setEditingPayment, setPaymentForm, emptyPayment, setClinicName, lang, setLang, setTheme }) {
+  const selectedPatient = selected || patients[0] || null;
+  const selectedPatientPayments = selectedPatient ? payments.filter((p) => p.patientId === selectedPatient.id).sort((a, b) => b.date.localeCompare(a.date)) : [];
+  const selectedPatientAppointments = selectedPatient ? appointments.filter((a) => a.patientId === selectedPatient.id).sort((a, b) => b.date.localeCompare(a.date)) : [];
+  const totalBalance = patients.reduce((sum, p) => sum + Number(p.balanceSyp || 0), 0);
+  const totalPaid = patients.reduce((sum, p) => sum + Number(p.paidSyp || 0), 0);
+
+  return <div className="hidden lg:grid lg:grid-cols-[260px_minmax(0,1fr)_360px] min-h-screen">
+    <aside className="border-l border-slate-200 bg-white p-5 flex flex-col gap-5 sticky top-0 h-screen">
+      <div className="space-y-2">
+        <div className="h-20 flex items-center justify-center overflow-visible">
+          <img src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'} alt="SY Systems Logo" className="h-full object-contain scale-[1.8]" />
+        </div>
+        <p className="text-xs text-slate-500 font-semibold text-center">Powered by SY Systems</p>
+      </div>
+
+      <nav className="space-y-2">
+        {nav.map((n) => <button key={n[0]} onClick={() => setTab(n[0])} className={`w-full flex items-center gap-3 rounded-2xl px-4 py-3 font-bold transition ${tab === n[0] ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}`}><span>{n[1]}</span><span>{n[2]}</span></button>)}
+      </nav>
+
+      <div className="mt-auto bg-slate-50 rounded-3xl p-4 text-sm space-y-1">
+        <p className="font-black">{clinicName}</p>
+        <p className="text-xs text-slate-500">{t.local} {last ? `· ${last}` : ''}</p>
+        <p className="text-xs text-slate-500">{sync}</p>
+        {error ? <p className="text-xs text-rose-600 line-clamp-3">{error}</p> : null}
+      </div>
+    </aside>
+
+    <section className="p-6 space-y-5 overflow-y-auto max-h-screen">
+      <header className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black">{tab === 'today' ? t.today : tab === 'patients' ? t.patients : tab === 'payments' ? t.payments : tab === 'reports' ? t.reports : t.settings}</h1>
+          <p className="text-sm text-slate-500">{clinicName}</p>
+        </div>
+        <div className="flex gap-2">
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+          <Button onClick={() => setModal('appointment')}>{t.addAppointment}</Button>
+        </div>
+      </header>
+
+      {tab === 'today' && <div className="space-y-5">
+        <div className="grid grid-cols-4 gap-4"><Stat icon="📅" label={t.appointmentCount} value={todayAppointments.length} /><Stat icon="✅" label={t.confirmed} value={todayAppointments.filter((a) => a.status === 'Confirmed').length} /><Stat icon="💰" label={t.todayCash} value={`${fmt(cashSyp)} ل.س`} /><Stat icon="📌" label={t.totalBalance} value={`${fmt(totalBalance)} ل.س`} /></div>
+        <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center justify-between"><h2 className="font-black text-lg">{t.appointmentList}</h2><Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} className="max-w-xs" /></div>
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <table className="w-full text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3 text-right">{t.time}</th><th className="p-3 text-right">{t.patient}</th><th className="p-3 text-right">{t.service}</th><th className="p-3 text-right">Status</th><th className="p-3 text-right">Actions</th></tr></thead><tbody>{todayAppointments.length ? todayAppointments.map((a) => <tr key={a.id} onClick={() => setSelected(patients.find((p) => p.id === a.patientId) || null)} className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer"><td className="p-3 font-black">{a.time}</td><td className="p-3"><b>{a.patient}</b><p className="text-xs text-slate-500">{a.phone}</p></td><td className="p-3">{a.service}</td><td className="p-3"><Badge status={a.status} t={t} /></td><td className="p-3"><div className="flex gap-1"><button onClick={(e) => { e.stopPropagation(); setStatus(a, 'Confirmed'); }} className="px-2 py-1 rounded-xl bg-emerald-50 text-emerald-700">{t.confirm}</button><button onClick={(e) => { e.stopPropagation(); setStatus(a, 'Done'); }} className="px-2 py-1 rounded-xl bg-blue-50 text-blue-700">{t.done}</button><button onClick={(e) => { e.stopPropagation(); deleteAppointment(a); }} className="px-2 py-1 rounded-xl bg-rose-50 text-rose-700">{t.delete}</button></div></td></tr>) : <tr><td colSpan="5" className="p-8 text-center text-slate-500">{t.noAppointments}</td></tr>}</tbody></table>
+          </div>
+        </div>
+      </div>}
+
+      {tab === 'patients' && <div className="space-y-4"><div className="flex justify-end"><Button onClick={openAddPatient}>{t.addPatient}</Button></div><div className="grid grid-cols-2 xl:grid-cols-3 gap-4">{patients.map((p) => <article key={p.id} onClick={() => setSelected(p)} className={`bg-white rounded-3xl border p-4 cursor-pointer hover:shadow-md ${selected?.id === p.id ? 'border-slate-900' : 'border-slate-200'}`}><div className="flex justify-between gap-3"><div><h3 className="font-black">{p.name}</h3><p className="text-sm text-slate-500">{p.phone}</p></div><span className="bg-slate-100 rounded-full px-3 py-1 text-xs h-fit">{p.visits} {t.visits}</span></div><p className="text-sm mt-3">{t.plan}: {p.plan || '-'}</p><p className="text-sm text-rose-700">{t.balance}: {fmt(p.balanceSyp)} ل.س</p></article>)}</div></div>}
+
+      {tab === 'payments' && <PaymentsSection t={t} payments={payments} patients={patients} selectedPayment={selectedPayment} setSelectedPayment={setSelectedPayment} onAddPayment={() => { setEditingPayment(null); setPaymentForm(emptyPayment); setModal('payment'); }} onEditPayment={openEditPayment} onDeletePayment={deletePaymentRecord} />}
+      {tab === 'reports' && <ReportsSection t={t} reportMode={reportMode} setReportMode={setReportMode} reportFrom={reportFrom} setReportFrom={setReportFrom} reportTo={reportTo} setReportTo={setReportTo} appointments={appointments} payments={payments} patients={patients} />}
+      {tab === 'settings' && <section className="bg-white rounded-3xl border border-slate-200 p-5 space-y-4 max-w-2xl"><Field label={t.clinicName}><Input value={clinicName} onChange={(e) => setClinicName(e.target.value)} /></Field><Field label={t.language}><Select value={lang} onChange={(e) => setLang(e.target.value)}><option value="ar">العربية</option><option value="en">English</option></Select></Field><Field label="Theme"><Select value={theme} onChange={(e) => setTheme(e.target.value)}><option value="light">Light</option><option value="dark">Dark</option></Select></Field></section>}
+    </section>
+
+    <aside className="border-r border-slate-200 bg-white p-5 overflow-y-auto max-h-screen">
+      {selectedPatient ? <PatientCard p={selectedPatient} payments={payments} appointments={appointments} onClose={() => setSelected(null)} onPay={() => openPayment(selectedPatient)} onEdit={() => openEditPatient(selectedPatient)} onDelete={() => deletePatientRecord(selectedPatient)} t={t} /> : <div className="bg-slate-50 rounded-3xl p-8 text-center text-slate-500">{t.tapProfile}</div>}
+      <div className="mt-5 grid grid-cols-2 gap-3"><Stat icon="👥" label={t.patientCount} value={patients.length} /><Stat icon="📈" label={t.totalPaid} value={`${fmt(totalPaid)} ل.س`} /></div>
+    </aside>
+  </div>;
 }
 
 function PaymentsSection({ t, payments, patients, selectedPayment, setSelectedPayment, onAddPayment, onEditPayment, onDeletePayment }) {
