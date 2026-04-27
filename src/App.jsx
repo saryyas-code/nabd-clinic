@@ -1,18 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-if (typeof document !== 'undefined') {
-  let viewport = document.querySelector('meta[name="viewport"]');
-
-  if (!viewport) {
-    viewport = document.createElement('meta');
-    viewport.name = 'viewport';
-    document.head.appendChild(viewport);
-  }
-
-  viewport.setAttribute(
-    'content',
-    'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover'
-  );
-}
 
 const SUPABASE_URL = 'https://kjdsxlofisxvargruvdr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtqZHN4bG9maXN4dmFyZ3J1dmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTA5NzgsImV4cCI6MjA5MjcyNjk3OH0.x84oyhi7uDoeDtAhZZWuKLPEFDFyJNFCujnuguJu1Ko';
@@ -97,13 +83,7 @@ function Input(props) { return <input {...props} className={`w-full rounded-2xl 
 function Select(props) { return <select {...props} className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none text-slate-900 ${props.className || ''}`} />; }
 function Textarea(props) { return <textarea {...props} className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none min-h-24 text-slate-900 ${props.className || ''}`} />; }
 function Modal({ title, onClose, children, dir = 'rtl' }) { return <div className="fixed inset-0 z-50 bg-slate-950/40 flex items-end justify-center p-3" dir={dir}><div className="bg-white w-full max-w-md rounded-t-[2rem] p-5 max-h-[92vh] overflow-y-auto shadow-2xl"><div className="flex items-center justify-between mb-4"><h2 className="font-black text-lg">{title}</h2><button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-100 text-xl">×</button></div><div className="space-y-3">{children}</div></div></div>; }
-function Badge({ status, t }) {
-  return (
-    <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-bold whitespace-nowrap min-w-[72px] h-7 shrink-0 ${statusClass[status] || statusClass.Pending}`}>
-      {t.status[status] || status}
-    </span>
-  );
-}
+function Badge({ status, t }) { return <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[status] || statusClass.Pending}`}>{t.status[status] || status}</span>; }
 function Stat({ icon, label, value }) { return <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm text-slate-900"><div className="text-xl">{icon}</div><div className="font-black mt-1">{value}</div><div className="text-xs text-slate-500">{label}</div></div>; }
 function inRange(date, from, to) { return date >= from && date <= to; }
 
@@ -196,6 +176,33 @@ export default function App() {
 
   async function setStatus(a, status) { const up = { ...a, status }; setAppointments((prev) => prev.map((x) => x.id === a.id ? up : x)); try { await sb('appointments', { method: 'PATCH', query: `?id=eq.${encodeURIComponent(a.id)}`, body: { status } }); } catch (e) { setError(e.message); } }
   async function deleteAppointment(a) { setAppointments((prev) => prev.filter((x) => x.id !== a.id)); try { await sb('appointments', { method: 'DELETE', query: `?id=eq.${encodeURIComponent(a.id)}` }); } catch (e) { setError(e.message); } }
+
+  async function deletePatientRecord(patient) {
+    if (!patient) return;
+    const ok = window.confirm(`${t.delete} ${patient.name}?`);
+    if (!ok) return;
+
+    const oldPatients = patients;
+    const oldAppointments = appointments;
+    const oldPayments = payments;
+
+    setPatients((prev) => prev.filter((x) => x.id !== patient.id));
+    setAppointments((prev) => prev.filter((x) => x.patientId !== patient.id));
+    setPayments((prev) => prev.filter((x) => x.patientId !== patient.id));
+    setSelected(null);
+
+    try {
+      await sb('appointments', { method: 'DELETE', query: `?patient_id=eq.${encodeURIComponent(patient.id)}` });
+      await sb('payments', { method: 'DELETE', query: `?patient_id=eq.${encodeURIComponent(patient.id)}` });
+      await sb('patients', { method: 'DELETE', query: `?id=eq.${encodeURIComponent(patient.id)}` });
+    } catch (e) {
+      setPatients(oldPatients);
+      setAppointments(oldAppointments);
+      setPayments(oldPayments);
+      setSelected(patient);
+      setError(e.message);
+    }
+  }
   function addNote() { if (!selected) return; const value = window.prompt(t.note, ''); if (!value) return; const up = { ...selected, notes: selected.notes ? `${selected.notes} | ${value}` : value }; setPatients((prev) => prev.map((p) => p.id === up.id ? up : p)); setSelected(up); }
 
   const nav = [['today', '📅', t.today], ['patients', '👥', t.patients], ['reports', '📊', t.reports], ['settings', '⚙️', t.settings]];
@@ -226,39 +233,11 @@ export default function App() {
       [data-theme="dark"] .shadow-md { box-shadow:0 10px 30px rgba(0,0,0,.35) !important; }
     `}</style>
     <div className="max-w-md mx-auto p-4 space-y-5">
-      <header className="flex items-center justify-between gap-2 overflow-visible">
-  <div className="min-w-0 flex-1">
-    <p className="text-[10px] text-slate-500 font-semibold truncate">
-      Powered by SY Systems
-    </p>
+      <header className="flex items-center justify-between gap-3"><div><p className="text-xs text-slate-500 font-semibold">Powered by SY Systems</p><h1 className="font-black text-xl">{clinicName}</h1><p className="text-[11px] text-slate-400">{t.local} {last ? `· ${last}` : ''} · {sync}</p>{error && <p className="text-[11px] text-rose-600">{error}</p>}</div><div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md bg-white border border-slate-200 flex items-center justify-center"><img src="sandbox:/mnt/data/SYsystem Logo.png" alt="SY Systems Logo" className="w-full h-full object-cover rounded-2xl" /></div></header>
 
-    <h1 className="font-black text-lg truncate">
-      {clinicName}
-    </h1>
+      {tab === 'today' && <section className="space-y-4"><div className="flex gap-2"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /><Button onClick={() => setModal('appointment')}>＋</Button></div><Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} /><div className="grid grid-cols-2 gap-3"><Stat icon="📅" label={t.appointmentCount} value={todayAppointments.length} /><Stat icon="✅" label={t.confirmed} value={todayAppointments.filter((a) => a.status === 'Confirmed').length} /><Stat icon="🦷" label={t.done} value={todayAppointments.filter((a) => a.status === 'Done').length} /><Stat icon="💰" label={t.todayCash} value={`${fmt(cashSyp)} ل.س`} /></div><div className="bg-white rounded-[2rem] border border-slate-200 p-4 space-y-3"><div className="flex justify-between"><h2 className="font-black">{t.todayMap}</h2><span className="text-sm text-slate-500">{todayAppointments.length}</span></div>{todayAppointments.length ? todayAppointments.map((a) => <button key={a.id} onClick={() => setSelected(patients.find((p) => p.id === a.patientId) || null)} className="w-full flex items-center gap-3 text-right bg-slate-50 rounded-2xl p-3"><b className="bg-slate-900 text-white rounded-2xl p-2 w-16 text-center">{a.time}</b><span className="flex-1"><b className="block">{a.patient}</b><small className="text-slate-500">{a.service} · {t.tapProfile}</small></span><Badge status={a.status} t={t} /></button>) : <p className="text-center text-slate-500 py-8">{t.noAppointments}</p>}</div>{selected && <PatientCard p={selected} payments={payments} appointments={appointments} onClose={() => setSelected(null)} onPay={() => openPayment(selected)} onEdit={() => openEditPatient(selected)} onDelete={() => deletePatientRecord(selected)} t={t} />}<div className="space-y-3"><h2 className="font-black">{t.appointmentList}</h2>{todayAppointments.map((a) => <article key={a.id} className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3"><div className="flex justify-between gap-3"><div><b className="text-xl">{a.time}</b><h3 className="font-black">{a.patient}</h3><p className="text-sm text-slate-500">{a.service}</p>{a.notes && <p className="text-xs text-slate-400">{a.notes}</p>}</div><Badge status={a.status} t={t} /></div><div className="grid grid-cols-2 gap-2"><Button variant="green" onClick={() => setStatus(a, 'Confirmed')} className="py-2 text-sm">{t.confirm}</Button><Button variant="blue" onClick={() => setStatus(a, 'Done')} className="py-2 text-sm">{t.done}</Button><Button variant="red" onClick={() => setStatus(a, 'No Show')} className="py-2 text-sm">{t.noShow}</Button><Button variant="red" onClick={() => deleteAppointment(a)} className="py-2 text-sm">{t.delete}</Button></div></article>)}</div></section>}
 
-    <p className="text-[10px] text-slate-400 truncate">
-      {t.local} {last ? `· ${last}` : ''} · {sync}
-    </p>
-
-    {error && (
-      <p className="text-[10px] text-rose-600 line-clamp-2">
-        {error}
-      </p>
-    )}
-  </div>
-
-  <div className="w-[170px] h-[70px] sm:w-[220px] sm:h-[82px] flex items-center justify-center shrink-0 overflow-visible">
-  <img
-    src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
-    alt="SY Systems Logo"
-    className="w-full h-full object-contain scale-[2] origin-center"
-  />
-</div>
-</header>
-
-      {tab === 'today' && <section className="space-y-4"><div className="flex gap-2"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /><Button onClick={() => setModal('appointment')}>＋</Button></div><Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} /><div className="grid grid-cols-2 gap-3"><Stat icon="📅" label={t.appointmentCount} value={todayAppointments.length} /><Stat icon="✅" label={t.confirmed} value={todayAppointments.filter((a) => a.status === 'Confirmed').length} /><Stat icon="🦷" label={t.done} value={todayAppointments.filter((a) => a.status === 'Done').length} /><Stat icon="💰" label={t.todayCash} value={`${fmt(cashSyp)} ل.س`} /></div><div className="bg-white rounded-[2rem] border border-slate-200 p-4 space-y-3"><div className="flex justify-between"><h2 className="font-black">{t.todayMap}</h2><span className="text-sm text-slate-500">{todayAppointments.length}</span></div>{todayAppointments.length ? todayAppointments.map((a) => <button key={a.id} onClick={() => setSelected(patients.find((p) => p.id === a.patientId) || null)} className="w-full flex items-center gap-3 text-right bg-slate-50 rounded-2xl p-3"><b className="bg-slate-900 text-white rounded-2xl p-2 w-16 text-center">{a.time}</b><span className="flex-1"><b className="block">{a.patient}</b><small className="text-slate-500">{a.service} · {t.tapProfile}</small></span><Badge status={a.status} t={t} /></button>) : <p className="text-center text-slate-500 py-8">{t.noAppointments}</p>}</div>{selected && <PatientCard p={selected} payments={payments} appointments={appointments} onClose={() => setSelected(null)} onPay={() => openPayment(selected)} onNote={addNote} onEdit={() => openEditPatient(selected)} t={t} />}<div className="space-y-3"><h2 className="font-black">{t.appointmentList}</h2>{todayAppointments.map((a) => <article key={a.id} className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3"><div className="flex justify-between gap-3"><div><b className="text-xl">{a.time}</b><h3 className="font-black">{a.patient}</h3><p className="text-sm text-slate-500">{a.service}</p>{a.notes && <p className="text-xs text-slate-400">{a.notes}</p>}</div><Badge status={a.status} t={t} /></div><div className="grid grid-cols-2 gap-2"><Button variant="green" onClick={() => setStatus(a, 'Confirmed')} className="py-2 text-sm">{t.confirm}</Button><Button variant="blue" onClick={() => setStatus(a, 'Done')} className="py-2 text-sm">{t.done}</Button><Button variant="red" onClick={() => setStatus(a, 'No Show')} className="py-2 text-sm">{t.noShow}</Button><Button variant="red" onClick={() => deleteAppointment(a)} className="py-2 text-sm">{t.delete}</Button></div></article>)}</div></section>}
-
-      {tab === 'patients' && <section className="space-y-3"><div className="flex justify-between items-center"><h2 className="font-black text-lg">{t.patients}</h2><Button onClick={openAddPatient} className="py-2">{t.add}</Button></div>{selected && <PatientCard p={selected} payments={payments} appointments={appointments} onClose={() => setSelected(null)} onPay={() => openPayment(selected)} onNote={addNote} onEdit={() => openEditPatient(selected)} t={t} />}{patients.map((p) => <article key={p.id} onClick={() => setSelected(p)} className="bg-white rounded-3xl border border-slate-200 p-4 active:scale-[.99]"><div className="flex justify-between"><div><h3 className="font-black">{p.name}</h3><p className="text-sm text-slate-500">{p.phone}</p></div><span className="bg-slate-100 px-3 py-1 rounded-full text-xs">{p.visits} {t.visits}</span></div><p className="text-sm mt-3">{t.plan}: {p.plan || '-'}</p><p className="text-sm text-rose-700">{t.balance}: {fmt(p.balanceSyp)} ل.س</p></article>)}</section>}
+      {tab === 'patients' && <section className="space-y-3"><div className="flex justify-between items-center"><h2 className="font-black text-lg">{t.patients}</h2><Button onClick={openAddPatient} className="py-2">{t.add}</Button></div>{selected && <PatientCard p={selected} payments={payments} appointments={appointments} onClose={() => setSelected(null)} onPay={() => openPayment(selected)} onEdit={() => openEditPatient(selected)} onDelete={() => deletePatientRecord(selected)} t={t} />}{patients.map((p) => <article key={p.id} onClick={() => setSelected(p)} className="bg-white rounded-3xl border border-slate-200 p-4 active:scale-[.99]"><div className="flex justify-between"><div><h3 className="font-black">{p.name}</h3><p className="text-sm text-slate-500">{p.phone}</p></div><span className="bg-slate-100 px-3 py-1 rounded-full text-xs">{p.visits} {t.visits}</span></div><p className="text-sm mt-3">{t.plan}: {p.plan || '-'}</p><p className="text-sm text-rose-700">{t.balance}: {fmt(p.balanceSyp)} ل.س</p></article>)}</section>}
       {tab === 'reports' && <ReportsSection t={t} reportMode={reportMode} setReportMode={setReportMode} reportFrom={reportFrom} setReportFrom={setReportFrom} reportTo={reportTo} setReportTo={setReportTo} appointments={appointments} payments={payments} patients={patients} />}
       {tab === 'settings' && <section className="space-y-4"><h2 className="font-black text-lg">{t.settings}</h2><div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3"><Field label={t.clinicName}><Input value={clinicName} onChange={(e) => setClinicName(e.target.value)} /></Field><Field label={t.language}><Select value={lang} onChange={(e) => setLang(e.target.value)}><option value="ar">العربية</option><option value="en">English</option></Select></Field><Field label="Theme"><Select value={theme} onChange={(e) => setTheme(e.target.value)}><option value="light">Light</option><option value="dark">Dark</option></Select></Field></div></section>}
     </div>
@@ -308,8 +287,8 @@ function ReportsSection({ t, reportMode, setReportMode, reportFrom, setReportFro
   return <section className="space-y-4"><h2 className="font-black text-lg">{t.reportTitle}</h2><div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3"><Field label={t.mode}><Select value={reportMode} onChange={(e) => setReportMode(e.target.value)}><option value="day">{t.day}</option><option value="range">{t.range}</option></Select></Field><div className="grid grid-cols-2 gap-2"><Field label={reportMode === 'day' ? t.reportDate : t.from}><Input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} /></Field>{reportMode === 'range' && <Field label={t.to}><Input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} /></Field>}</div></div><div className="bg-white rounded-3xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><div><h3 className="font-black">{t.result}</h3><p className="text-sm text-slate-500">{t.period}: {from} - {to}</p></div><Button onClick={exportReport} className="py-2 px-4">{t.export}</Button></div></div><div className="grid grid-cols-2 gap-3"><Stat icon="📅" label={t.appCount} value={periodAppointments.length} /><Stat icon="✅" label={t.completed} value={done} /><Stat icon="⚠️" label={t.noShow} value={noShow} /><Stat icon="👥" label={t.patientCount} value={patients.length} /><Stat icon="💰" label={t.paidPeriod} value={`${fmt(periodSyp)} ل.س`} /><Stat icon="📈" label={t.totalPaid} value={`${fmt(totalPaid)} ل.س`} /><Stat icon="📌" label={t.totalBalance} value={`${fmt(totalBalance)} ل.س`} /></div><div className="bg-white rounded-3xl border border-slate-200 p-4"><h3 className="font-black mb-2">{t.appsInPeriod}</h3>{periodAppointments.length ? periodAppointments.map((a) => <div key={a.id} className="border-b last:border-0 py-2 text-sm"><div className="flex justify-between"><span>{a.date} · {a.time}</span><b>{a.patient}</b></div><p className="text-xs text-slate-500">{a.service} · {t.status[a.status] || a.status}</p></div>) : <p className="text-sm text-slate-500">{t.noAppointments}</p>}</div><div className="bg-white rounded-3xl border border-slate-200 p-4"><h3 className="font-black mb-2">{t.paysInPeriod}</h3>{periodPayments.length ? periodPayments.map((p) => <div key={p.id} className="border-b last:border-0 py-2 text-sm"><div className="flex justify-between"><span>{p.date} · {p.patientName}</span><b>{fmt(p.amountSyp)} ل.س</b></div><p className="text-xs text-slate-500">{p.method} {p.note ? `· ${p.note}` : ''}</p></div>) : <p className="text-sm text-slate-500">{t.noPayments}</p>}</div></section>;
 }
 
-function PatientCard({ p, payments, appointments, onClose, onPay, onEdit, t }) {
+function PatientCard({ p, payments, appointments, onClose, onPay, onEdit, onDelete, t }) {
   const pays = payments.filter((x) => x.patientId === p.id).sort((a, b) => b.date.localeCompare(a.date));
   const apps = appointments.filter((x) => x.patientId === p.id).sort((a, b) => b.date.localeCompare(a.date));
-  return <section className="bg-slate-900 text-white rounded-[2rem] p-5 space-y-4 shadow-xl"><div className="flex justify-between gap-3"><div><h3 className="font-black text-xl">{p.name}</h3><p className="text-sm text-slate-300">{p.phone}</p></div><button onClick={onClose} className="bg-white/10 rounded-full px-3 py-1 text-sm">{t.close}</button></div><div className="grid grid-cols-2 gap-2 text-sm"><div className="bg-white/10 rounded-2xl p-3">{t.plan}: {p.plan || '-'}</div><div className="bg-white/10 rounded-2xl p-3">{t.visits}: {p.visits || 0}</div><div className="bg-white/10 rounded-2xl p-3">{t.total}: {fmt(p.totalSyp)} ل.س</div><div className="bg-white/10 rounded-2xl p-3">{t.balance}: {fmt(p.balanceSyp)} ل.س</div></div><div className="grid grid-cols-3 gap-2"><Button variant="light" onClick={onPay} className="py-2 text-sm">{t.payment}</Button><Button variant="light" onClick={onEdit} className="py-2 text-sm">{t.edit}</Button></div>{p.notes && <p className="bg-white/10 rounded-2xl p-3 text-sm">{p.notes}</p>}<div><h4 className="font-black mb-2">{t.payments}</h4>{pays.length ? pays.map((x) => <div key={x.id} className="bg-white/10 rounded-2xl p-3 text-sm mb-2"><div className="flex justify-between"><span>{x.date}</span><b>{fmt(x.amountSyp)} ل.س</b></div><small className="text-slate-300">{x.method} {x.note ? `· ${x.note}` : ''}</small></div>) : <p className="text-sm text-slate-300">{t.noPayments}</p>}</div><div><h4 className="font-black mb-2">{t.visitHistory}</h4>{apps.length ? apps.map((x) => <div key={x.id} className="bg-white/10 rounded-2xl p-3 text-sm mb-2"><div className="flex justify-between"><span>{x.date} · {x.time}</span><b>{x.service}</b></div><small className="text-slate-300">{t.status[x.status] || x.status}</small></div>) : <p className="text-sm text-slate-300">{t.noAppointments}</p>}</div></section>;
+  return <section className="bg-slate-900 text-white rounded-[2rem] p-5 space-y-4 shadow-xl"><div className="flex justify-between gap-3"><div><h3 className="font-black text-xl">{p.name}</h3><p className="text-sm text-slate-300">{p.phone}</p></div><button onClick={onClose} className="bg-white/10 rounded-full px-3 py-1 text-sm">{t.close}</button></div><div className="grid grid-cols-2 gap-2 text-sm"><div className="bg-white/10 rounded-2xl p-3">{t.plan}: {p.plan || '-'}</div><div className="bg-white/10 rounded-2xl p-3">{t.visits}: {p.visits || 0}</div><div className="bg-white/10 rounded-2xl p-3">{t.total}: {fmt(p.totalSyp)} ل.س</div><div className="bg-white/10 rounded-2xl p-3">{t.balance}: {fmt(p.balanceSyp)} ل.س</div></div><div className="grid grid-cols-3 gap-2"><Button variant="light" onClick={onPay} className="py-2 text-sm">{t.payment}</Button><Button variant="light" onClick={onEdit} className="py-2 text-sm">{t.edit}</Button><Button variant="red" onClick={onDelete} className="py-2 text-sm">{t.delete}</Button></div>{p.notes && <p className="bg-white/10 rounded-2xl p-3 text-sm">{p.notes}</p>}<div><h4 className="font-black mb-2">{t.payments}</h4>{pays.length ? pays.map((x) => <div key={x.id} className="bg-white/10 rounded-2xl p-3 text-sm mb-2"><div className="flex justify-between"><span>{x.date}</span><b>{fmt(x.amountSyp)} ل.س</b></div><small className="text-slate-300">{x.method} {x.note ? `· ${x.note}` : ''}</small></div>) : <p className="text-sm text-slate-300">{t.noPayments}</p>}</div><div><h4 className="font-black mb-2">{t.visitHistory}</h4>{apps.length ? apps.map((x) => <div key={x.id} className="bg-white/10 rounded-2xl p-3 text-sm mb-2"><div className="flex justify-between"><span>{x.date} · {x.time}</span><b>{x.service}</b></div><small className="text-slate-300">{t.status[x.status] || x.status}</small></div>) : <p className="text-sm text-slate-300">{t.noAppointments}</p>}</div></section>;
 }
