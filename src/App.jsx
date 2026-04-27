@@ -1,4 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
+if (typeof document !== 'undefined') {
+  let viewport = document.querySelector('meta[name="viewport"]');
+
+  if (!viewport) {
+    viewport = document.createElement('meta');
+    viewport.name = 'viewport';
+    document.head.appendChild(viewport);
+  }
+
+  viewport.setAttribute(
+    'content',
+    'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover'
+  );
+}
 
 const SUPABASE_URL = 'https://kjdsxlofisxvargruvdr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtqZHN4bG9maXN4dmFyZ3J1dmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTA5NzgsImV4cCI6MjA5MjcyNjk3OH0.x84oyhi7uDoeDtAhZZWuKLPEFDFyJNFCujnuguJu1Ko';
