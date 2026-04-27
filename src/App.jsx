@@ -83,7 +83,13 @@ function Input(props) { return <input {...props} className={`w-full rounded-2xl 
 function Select(props) { return <select {...props} className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none text-slate-900 ${props.className || ''}`} />; }
 function Textarea(props) { return <textarea {...props} className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none min-h-24 text-slate-900 ${props.className || ''}`} />; }
 function Modal({ title, onClose, children, dir = 'rtl' }) { return <div className="fixed inset-0 z-50 bg-slate-950/40 flex items-end justify-center p-3" dir={dir}><div className="bg-white w-full max-w-md rounded-t-[2rem] p-5 max-h-[92vh] overflow-y-auto shadow-2xl"><div className="flex items-center justify-between mb-4"><h2 className="font-black text-lg">{title}</h2><button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-100 text-xl">×</button></div><div className="space-y-3">{children}</div></div></div>; }
-function Badge({ status, t }) { return <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[status] || statusClass.Pending}`}>{t.status[status] || status}</span>; }
+function Badge({ status, t }) {
+  return (
+    <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-bold whitespace-nowrap min-w-[72px] h-7 shrink-0 ${statusClass[status] || statusClass.Pending}`}>
+      {t.status[status] || status}
+    </span>
+  );
+}
 function Stat({ icon, label, value }) { return <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm text-slate-900"><div className="text-xl">{icon}</div><div className="font-black mt-1">{value}</div><div className="text-xs text-slate-500">{label}</div></div>; }
 function inRange(date, from, to) { return date >= from && date <= to; }
 
@@ -105,6 +111,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [last, setLast] = useState('');
   const [editingPatient, setEditingPatient] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null);
   const [reportMode, setReportMode] = useState('day');
   const [reportFrom, setReportFrom] = useState(today());
   const [reportTo, setReportTo] = useState(today());
@@ -141,7 +148,8 @@ export default function App() {
 
   function openAddPatient() { setEditingPatient(null); setPatientForm(emptyPatient); setModal('patient'); }
   function openEditPatient(p) { setEditingPatient(p); setPatientForm({ name: p.name, phone: p.phone, plan: p.plan, totalSyp: p.totalSyp, notes: p.notes }); setModal('patient'); }
-  function openPayment(p = selected) { setPaymentForm({ ...emptyPayment, patientId: p?.id || '' }); setModal('payment'); }
+  function openPayment(p = selected) { setEditingPayment(null); setPaymentForm({ ...emptyPayment, patientId: p?.id || '' }); setModal('payment'); }
+  function openEditPayment(payment) { setEditingPayment(payment); setPaymentForm({ patientId: payment.patientId || '', date: payment.date || today(), amountSyp: String(payment.amountSyp || ''), method: payment.method || 'Cash', note: payment.note || '' }); setModal('payment'); }
 
   async function savePatient() {
     if (!patientForm.name || !patientForm.phone) return;
@@ -167,11 +175,104 @@ export default function App() {
   }
 
   async function savePayment() {
-    const p = patients.find((x) => x.id === paymentForm.patientId); const syp = Number(paymentForm.amountSyp || 0); if (!p || !syp) return;
+    const p = patients.find((x) => x.id === paymentForm.patientId);
+    const syp = Number(paymentForm.amountSyp || 0);
+    if (!p || !syp) return;
+
+    if (editingPayment) {
+      const oldPayment = editingPayment;
+      const oldPatient = patients.find((x) => x.id === oldPayment.patientId);
+      const targetPatient = patients.find((x) => x.id === paymentForm.patientId);
+      if (!targetPatient) return;
+
+      const updatedPayment = {
+        ...oldPayment,
+        patientId: targetPatient.id,
+        patientName: targetPatient.name,
+        date: paymentForm.date,
+        amountSyp: syp,
+        method: paymentForm.method,
+        note: paymentForm.note,
+      };
+
+      const oldPayments = payments;
+      const oldPatients = patients;
+
+      let nextPatients = patients;
+      if (oldPatient && oldPatient.id === targetPatient.id) {
+        const paidSyp = Number(oldPatient.paidSyp || 0) - Number(oldPayment.amountSyp || 0) + syp;
+        nextPatients = patients.map((x) => x.id === oldPatient.id ? { ...x, paidSyp, balanceSyp: Math.max(Number(x.totalSyp || 0) - paidSyp, 0) } : x);
+      } else {
+        nextPatients = patients.map((x) => {
+          if (oldPatient && x.id === oldPatient.id) {
+            const paidSyp = Math.max(Number(x.paidSyp || 0) - Number(oldPayment.amountSyp || 0), 0);
+            return { ...x, paidSyp, balanceSyp: Math.max(Number(x.totalSyp || 0) - paidSyp, 0) };
+          }
+          if (x.id === targetPatient.id) {
+            const paidSyp = Number(x.paidSyp || 0) + syp;
+            return { ...x, paidSyp, balanceSyp: Math.max(Number(x.totalSyp || 0) - paidSyp, 0) };
+          }
+          return x;
+        });
+      }
+
+      setPayments((prev) => prev.map((x) => x.id === oldPayment.id ? updatedPayment : x));
+      setPatients(nextPatients);
+      setSelected(nextPatients.find((x) => x.id === targetPatient.id) || null);
+      setEditingPayment(null);
+      setModal(null);
+
+      try {
+        await sb('payments', { method: 'PATCH', query: `?id=eq.${encodeURIComponent(updatedPayment.id)}`, body: toDbPayment(updatedPayment) });
+        for (const patient of nextPatients) {
+          const oldMatch = oldPatients.find((x) => x.id === patient.id);
+          if (oldMatch && (oldMatch.paidSyp !== patient.paidSyp || oldMatch.balanceSyp !== patient.balanceSyp)) {
+            await sb('patients', { method: 'PATCH', query: `?id=eq.${encodeURIComponent(patient.id)}`, body: { paid_syp: patient.paidSyp, balance_syp: patient.balanceSyp } });
+          }
+        }
+      } catch (e) {
+        setPayments(oldPayments);
+        setPatients(oldPatients);
+        setSelected(oldPatient || targetPatient);
+        setError(e.message);
+      }
+      return;
+    }
+
     const pay = { id: makeId('PAY'), patientId: p.id, patientName: p.name, date: paymentForm.date, amountSyp: syp, method: paymentForm.method, note: paymentForm.note };
     const up = { ...p, paidSyp: Number(p.paidSyp || 0) + syp, balanceSyp: Math.max(Number(p.totalSyp || 0) - Number(p.paidSyp || 0) - syp, 0) };
     setPayments((prev) => [...prev, pay]); setPatients((prev) => prev.map((x) => x.id === p.id ? up : x)); setSelected(up); setModal(null);
     try { await sb('payments', { method: 'POST', body: toDbPayment(pay) }); await sb('patients', { method: 'PATCH', query: `?id=eq.${encodeURIComponent(p.id)}`, body: { paid_syp: up.paidSyp, balance_syp: up.balanceSyp } }); } catch (e) { setError(e.message); }
+  }
+
+  async function deletePaymentRecord(payment) {
+    if (!payment) return;
+    const ok = window.confirm(`${t.delete} ${fmt(payment.amountSyp)} ل.س؟`);
+    if (!ok) return;
+
+    const patient = patients.find((x) => x.id === payment.patientId);
+    const oldPayments = payments;
+    const oldPatients = patients;
+    const updatedPatient = patient ? { ...patient, paidSyp: Math.max(Number(patient.paidSyp || 0) - Number(payment.amountSyp || 0), 0) } : null;
+    if (updatedPatient) updatedPatient.balanceSyp = Math.max(Number(updatedPatient.totalSyp || 0) - Number(updatedPatient.paidSyp || 0), 0);
+
+    setPayments((prev) => prev.filter((x) => x.id !== payment.id));
+    if (updatedPatient) {
+      setPatients((prev) => prev.map((x) => x.id === updatedPatient.id ? updatedPatient : x));
+      setSelected(updatedPatient);
+    }
+
+    try {
+      await sb('payments', { method: 'DELETE', query: `?id=eq.${encodeURIComponent(payment.id)}` });
+      if (updatedPatient) {
+        await sb('patients', { method: 'PATCH', query: `?id=eq.${encodeURIComponent(updatedPatient.id)}`, body: { paid_syp: updatedPatient.paidSyp, balance_syp: updatedPatient.balanceSyp } });
+      }
+    } catch (e) {
+      setPayments(oldPayments);
+      setPatients(oldPatients);
+      setSelected(patient || null);
+      setError(e.message);
+    }
   }
 
   async function setStatus(a, status) { const up = { ...a, status }; setAppointments((prev) => prev.map((x) => x.id === a.id ? up : x)); try { await sb('appointments', { method: 'PATCH', query: `?id=eq.${encodeURIComponent(a.id)}`, body: { status } }); } catch (e) { setError(e.message); } }
@@ -233,7 +334,13 @@ export default function App() {
       [data-theme="dark"] .shadow-md { box-shadow:0 10px 30px rgba(0,0,0,.35) !important; }
     `}</style>
     <div className="max-w-md mx-auto p-4 space-y-5">
-      <header className="flex items-center justify-between gap-3"><div><p className="text-xs text-slate-500 font-semibold">Powered by SY Systems</p><h1 className="font-black text-xl">{clinicName}</h1><p className="text-[11px] text-slate-400">{t.local} {last ? `· ${last}` : ''} · {sync}</p>{error && <p className="text-[11px] text-rose-600">{error}</p>}</div><div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md bg-white border border-slate-200 flex items-center justify-center"><img src="sandbox:/mnt/data/SYsystem Logo.png" alt="SY Systems Logo" className="w-full h-full object-cover rounded-2xl" /></div></header>
+      <header className="flex items-center justify-between gap-3"><div><p className="text-xs text-slate-500 font-semibold">Powered by SY Systems</p><h1 className="font-black text-xl">{clinicName}</h1><p className="text-[11px] text-slate-400">{t.local} {last ? `· ${last}` : ''} · {sync}</p>{error && <p className="text-[11px] text-rose-600">{error}</p>}</div><div className="w-[170px] h-[70px] sm:w-[220px] sm:h-[82px] flex items-center justify-center shrink-0 overflow-visible">
+  <img
+    src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
+    alt="SY Systems Logo"
+    className="w-full h-full object-contain scale-[2] origin-center"
+  />
+</div></header>
 
       {tab === 'today' && <section className="space-y-4"><div className="flex gap-2"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /><Button onClick={() => setModal('appointment')}>＋</Button></div><Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} /><div className="grid grid-cols-2 gap-3"><Stat icon="📅" label={t.appointmentCount} value={todayAppointments.length} /><Stat icon="✅" label={t.confirmed} value={todayAppointments.filter((a) => a.status === 'Confirmed').length} /><Stat icon="🦷" label={t.done} value={todayAppointments.filter((a) => a.status === 'Done').length} /><Stat icon="💰" label={t.todayCash} value={`${fmt(cashSyp)} ل.س`} /></div><div className="bg-white rounded-[2rem] border border-slate-200 p-4 space-y-3"><div className="flex justify-between"><h2 className="font-black">{t.todayMap}</h2><span className="text-sm text-slate-500">{todayAppointments.length}</span></div>{todayAppointments.length ? todayAppointments.map((a) => <button key={a.id} onClick={() => setSelected(patients.find((p) => p.id === a.patientId) || null)} className="w-full flex items-center gap-3 text-right bg-slate-50 rounded-2xl p-3"><b className="bg-slate-900 text-white rounded-2xl p-2 w-16 text-center">{a.time}</b><span className="flex-1"><b className="block">{a.patient}</b><small className="text-slate-500">{a.service} · {t.tapProfile}</small></span><Badge status={a.status} t={t} /></button>) : <p className="text-center text-slate-500 py-8">{t.noAppointments}</p>}</div>{selected && <PatientCard p={selected} payments={payments} appointments={appointments} onClose={() => setSelected(null)} onPay={() => openPayment(selected)} onEdit={() => openEditPatient(selected)} onDelete={() => deletePatientRecord(selected)} t={t} />}<div className="space-y-3"><h2 className="font-black">{t.appointmentList}</h2>{todayAppointments.map((a) => <article key={a.id} className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3"><div className="flex justify-between gap-3"><div><b className="text-xl">{a.time}</b><h3 className="font-black">{a.patient}</h3><p className="text-sm text-slate-500">{a.service}</p>{a.notes && <p className="text-xs text-slate-400">{a.notes}</p>}</div><Badge status={a.status} t={t} /></div><div className="grid grid-cols-2 gap-2"><Button variant="green" onClick={() => setStatus(a, 'Confirmed')} className="py-2 text-sm">{t.confirm}</Button><Button variant="blue" onClick={() => setStatus(a, 'Done')} className="py-2 text-sm">{t.done}</Button><Button variant="red" onClick={() => setStatus(a, 'No Show')} className="py-2 text-sm">{t.noShow}</Button><Button variant="red" onClick={() => deleteAppointment(a)} className="py-2 text-sm">{t.delete}</Button></div></article>)}</div></section>}
 
